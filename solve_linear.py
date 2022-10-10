@@ -73,8 +73,10 @@ class Face:
         """
         return the factor form used to solve the linear system   
         """
-        if self.id == face.id or (180.0/math.pi)*self.angle_between(self.norm,face.norm) < 90:
+        if self.id == face.id:
             return 1
+        if (180.0/math.pi)*self.angle_between(self.norm,face.norm) < 90:
+            return 0
         
         vij = (self.centroid[0] - face.centroid[0],self.centroid[1] - face.centroid[1],self.centroid[2] - face.centroid[2])
         Aj = face.area
