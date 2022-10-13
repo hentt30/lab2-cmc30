@@ -5,8 +5,9 @@ import xml.etree.ElementTree as ET
 from xml.dom.minidom import parse, Node
 import numpy as np
 
+
 class Face:
-    def __init__(self,p1:tuple,p2:tuple,p3:tuple,c1:tuple,c2:tuple,c3:tuple):
+    def __init__(self, p1: tuple, p2: tuple, p3: tuple, c1: tuple, c2: tuple, c3: tuple):
         self.id = uuid.uuid4()
         self.x1 = p1[0]
         self.y1 = p1[1]
@@ -35,55 +36,58 @@ class Face:
         self.centroid = self.get_centroid()
         self.area = self.get_area()
         self.norm = self.get_norm()
-    
-    def get_centroid(self)->tuple:
+
+    def get_centroid(self) -> tuple:
         """
         Return the centroid of the triangle
         """
-        return ((self.x1 + self.x2 + self.x3)/3,(self.y1 + self.y2 + self.y3)/3,(self.z1 + self.z2 + self.z3)/3)
-    
-    def get_area(self)->float:
+        return ((self.x1 + self.x2 + self.x3)/3, (self.y1 + self.y2 + self.y3)/3, (self.z1 + self.z2 + self.z3)/3)
+
+    def get_area(self) -> float:
         """
         Return the area of the triangle => S = |AxB|*(1/2)
         """
-        a = (self.x2 - self.x1,self.y2 - self.y1,self.z2 - self.z1)
-        b = (self.x3 - self.x1,self.y3 - self.y1,self.z3 - self.z1)
-        s = 0.5*math.sqrt((a[1]*b[2] - a[2]*b[1])**2 + (a[0]*b[2]-a[2]*b[0])**2 + (a[0]*b[1] - a[1]*b[0])**2)
+        a = (self.x2 - self.x1, self.y2 - self.y1, self.z2 - self.z1)
+        b = (self.x3 - self.x1, self.y3 - self.y1, self.z3 - self.z1)
+        s = 0.5*math.sqrt((a[1]*b[2] - a[2]*b[1])**2 +
+                          (a[0]*b[2] - a[2]*b[0])**2 + (a[0]*b[1] - a[1]*b[0])**2)
         return s
-    
-    def get_normal(self)->tuple:
+
+    def get_normal(self) -> tuple:
         """
         Get the normal of the triangle
         """
-        a = (self.x2 - self.x1,self.y2 - self.y1,self.z2 - self.z1)
-        b = (self.x3 - self.x1,self.y3 - self.y1,self.z3 - self.z1)
+        a = (self.x2 - self.x1, self.y2 - self.y1, self.z2 - self.z1)
+        b = (self.x3 - self.x1, self.y3 - self.y1, self.z3 - self.z1)
         module = self.get_area()*2
-        norm = ((a[1]*b[2] - a[2]*b[1])/module , -(a[0]*b[2]-a[2]*b[0])/module , (a[0]*b[1] - a[1]*b[0])/module)
+        norm = ((a[1]*b[2] - a[2]*b[1])/module, -(a[0]*b[2]-a[2]
+                * b[0])/module, (a[0]*b[1] - a[1]*b[0])/module)
         return norm
 
-    def unit_vector(self,vector):
+    def unit_vector(self, vector):
         return vector / np.linalg.norm(vector)
-    
-    def angle_between(self,v1, v2):
+
+    def angle_between(self, v1, v2):
         v1_u = self.unit_vector(v1)
         v2_u = self.unit_vector(v2)
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-    
-    def get_factor_form(self,face:Face)->float:
+
+    def get_factor_form(self, face: Face) -> float:
         """
         return the factor form used to solve the linear system   
         """
         if self.id == face.id:
             return 1
-        if (180.0/math.pi)*self.angle_between(self.norm,face.norm) < 90:
+        if (180.0/math.pi)*self.angle_between(self.norm, face.norm) < 90:
             return 0
-        
-        vij = (self.centroid[0] - face.centroid[0],self.centroid[1] - face.centroid[1],self.centroid[2] - face.centroid[2])
+
+        vij = (self.centroid[0] - face.centroid[0], self.centroid[1] -
+               face.centroid[1], self.centroid[2] - face.centroid[2])
         Aj = face.area
-        cos_theta_i = np.cos(self.angle_between(vij,self.centroid))
-        cos_theta_j = np.cos(self.angle_between(vij,face.centroid))
+        cos_theta_i = np.cos(self.angle_between(vij, self.centroid))
+        cos_theta_j = np.cos(self.angle_between(vij, face.centroid))
         r = np.norm(vij)
-        
+
         return (Aj*cos_theta_i*cos_theta_j)/(math.pi*(r**2) + Aj)
 
 
@@ -93,26 +97,29 @@ def set_id_attribute(parent, attribute_name="id"):
     """
     if parent.nodeType == Node.ELEMENT_NODE:
         if parent.hasAttribute(attribute_name):
-             parent.setIdAttribute(attribute_name)
+            parent.setIdAttribute(attribute_name)
     for child in parent.childNodes:
         set_id_attribute(child, attribute_name)
 
-## Parse the system
-document = parse('exemplocena.dae')
-set_id_attribute(document)
-root = document.documentElement
 
-objects = {}
+if __name__ == "__main__":
+    # Parse the system
+    document = parse('exemplocena.dae')
+    set_id_attribute(document)
+    root = document.documentElement
 
-for geometry in root.getElementsByTagName("float_array"):
-    id = geometry.getAttribute("id")
-    splitted_id = id.split('-')
-    if splitted_id[0] not in objects:
-        objects[splitted_id[0]] = {}
-    objects[splitted_id[0]][splitted_id[2]] = list(map(float,geometry.firstChild.data.split()))
+    objects = {}
 
-## Create the faces objects
+    for geometry in root.getElementsByTagName("float_array"):
+        id = geometry.getAttribute("id")
+        splitted_id = id.split('-')
+        if splitted_id[0] not in objects:
+            objects[splitted_id[0]] = {}
+        objects[splitted_id[0]][splitted_id[2]] = list(
+            map(float, geometry.firstChild.data.split()))
 
-## Solve the linear system
+    # Create the faces objects
 
-## Update the files
+    # Solve the linear system
+
+    # Update the files
