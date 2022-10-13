@@ -105,6 +105,8 @@ class Face:
             v2 = self.tetrahedron_calc_volume((other_face.x1, other_face.y1,other_face.z1),(other_face.x2, other_face.y2,other_face.z2),(other_face.x3, other_face.y3,other_face.z3),face.centroid)
             if np.sign(v1) == np.sign(v2):
                 continue
+            
+
 
         ## Return the view factor
         Aj = face.area
