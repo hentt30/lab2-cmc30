@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from xml.dom.minidom import parse, Node
 import numpy as np
 
+faces_vector = []
 
 class Face:
     def __init__(self, p1: tuple, p2: tuple, p3: tuple, c1: tuple, c2: tuple, c3: tuple):
@@ -71,18 +72,43 @@ class Face:
         v1_u = self.unit_vector(v1)
         v2_u = self.unit_vector(v2)
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+    
+    def determinant_3x3(self, m):
+        return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+                m[1][0] * (m[0][1] * m[2][2] - m[0][2] * m[2][1]) +
+                m[2][0] * (m[0][1] * m[1][2] - m[0][2] * m[1][1]))
 
-    def get_factor_form(self, face: Face) -> float:
+
+    def subtract(self, a, b):
+        return (a[0] - b[0],
+                a[1] - b[1],
+                a[2] - b[2])
+
+    def tetrahedron_calc_volume(self,a, b, c, d):
+        return (self.determinant_3x3((
+                                self.subtract(a, b),
+                                self.subtract(b, c),
+                                self.subtract(c, d),
+                                 )) / 6.0)
+    
+    def get_factor_form(self,face:Face)->float:
         """
         return the factor form used to solve the linear system   
         """
-        if self.id == face.id:
-            return 1
-        if (180.0/math.pi)*self.angle_between(self.norm, face.norm) < 90:
+        vij = (self.centroid[0] - face.centroid[0],self.centroid[1] - face.centroid[1],self.centroid[2] - face.centroid[2])
+        if self.id == face.id or (180.0/math.pi)*self.angle_between(vij,face.norm) < 90:
             return 0
+        
+        ## check if the triangles aren't blocked
+        for other_face in faces_vector:
+            if other_face.id == face.id or other_face.id == self.id:
+                continue
+            v1 = self.tetrahedron_calc_volume((other_face.x1, other_face.y1,other_face.z1),(other_face.x2, other_face.y2,other_face.z2),(other_face.x3, other_face.y3,other_face.z3),self.centroid)
+            v2 = self.tetrahedron_calc_volume((other_face.x1, other_face.y1,other_face.z1),(other_face.x2, other_face.y2,other_face.z2),(other_face.x3, other_face.y3,other_face.z3),face.centroid)
+            if np.sign(v1) == np.sign(v2):
+                continue
 
-        vij = (self.centroid[0] - face.centroid[0], self.centroid[1] -
-               face.centroid[1], self.centroid[2] - face.centroid[2])
+        ## Return the view factor
         Aj = face.area
         cos_theta_i = np.cos(self.angle_between(vij, self.centroid))
         cos_theta_j = np.cos(self.angle_between(vij, face.centroid))
