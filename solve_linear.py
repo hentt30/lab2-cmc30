@@ -133,14 +133,21 @@ set_id_attribute(document)
 root = document.documentElement
 
 objects = {}
-
-for geometry in root.getElementsByTagName("float_array"):
-    id = geometry.getAttribute("id")
-    splitted_id = id.split('-')
-    if splitted_id[0] not in objects:
-        objects[splitted_id[0]] = {}
-    objects[splitted_id[0]][splitted_id[2]] = list(map(float,geometry.firstChild.data.split()))
-
+for geometry in root.getElementsByTagName("geometry"):
+    id = ''
+    for arr in geometry.getElementsByTagName("float_array"):
+        id = arr.getAttribute("id")
+        splitted_id = id.split('-')
+        if splitted_id[0] not in objects:
+            objects[splitted_id[0]] = {}
+        objects[splitted_id[0]][splitted_id[2]] = list(map(float,arr.firstChild.data.split()))
+    for arr in geometry.getElementsByTagName("p"):
+        splitted_id = id.split('-')
+        if splitted_id[0] not in objects:
+            objects[splitted_id[0]] = {}
+        objects[splitted_id[0]]['mapping'] = list(map(int,arr.firstChild.data.split()))
+    
+print(objects.keys())
 ## Create the faces objects
 
 ## Solve the linear system
