@@ -255,6 +255,8 @@ if __name__ == "__main__":
     #     indexes = list(map(int, p.text.split()))
 
     objects = {}
+    reverse = {}
+
     for geometry in root.getElementsByTagName("geometry"):
         id = ''
         for arr in geometry.getElementsByTagName("float_array"):
@@ -272,7 +274,39 @@ if __name__ == "__main__":
                 map(int, arr.firstChild.data.split()))
 
     print(objects.keys())
+    print(objects['Cube'].keys())
+
     # Create the faces objects
+    for object in objects:
+        vertices = object['positions']
+        colors = object['colors']
+        indexes = object['mapping']
+
+        object['faces'] = []
+        i = 0
+        while i < len(indexes):
+            j = indexes[i]
+            p1 = vertices[j], vertices[j + 1], vertices[j + 2]
+            j = indexes[i + 4]
+            p2 = vertices[j], vertices[j + 1], vertices[j + 2]
+            j = indexes[i + 8]
+            p3 = vertices[j], vertices[j + 1], vertices[j + 2]
+
+            k = indexes[i + 3]
+            c1 = colors[k], colors[k + 1], colors[k + 2]
+            k = indexes[i + 7]
+            c2 = colors[k], colors[k + 1], colors[k + 2]
+            k = indexes[i + 11]
+            c3 = colors[k], colors[k + 1], colors[k + 2]
+
+            face = Face(p1, p2, p3, c1, c2, c3)
+            reverse[p1.__str__()] = (face, 1)
+            reverse[p2.__str__()] = (face, 2)
+            reverse[p3.__str__()] = (face, 3)
+            object['faces'].append(face)
+            faces_vector.append(face)
+
+            i += 12
 
     # Solve the linear system (ax = b) for each color
     threads = []
@@ -282,5 +316,18 @@ if __name__ == "__main__":
         threads.append(t)
     for t in threads:
         t.join()
+
+    # Updates the vertices colors of the faces
+    for point, faces in reverse.items():
+        n = len(faces)
+        rm = gm = bm = 0
+        for face in faces:
+            rm += face[0]['r' + str(face[1])] / n
+            gm += face[0]['g' + str(face[1])] / n
+            bm += face[0]['b' + str(face[1])] / n
+        for face in faces:
+            face[0]['r' + str(face[1])] = rm
+            face[0]['g' + str(face[1])] = gm
+            face[0]['b' + str(face[1])] = bm
 
     # Update the files
