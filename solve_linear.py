@@ -221,15 +221,12 @@ def set_final_iluminations(faces: list[Face], color: str) -> np.ndarray:
     size = len(faces)
     a = np.identity(size)
     b = np.zeros(size)
-
     for i in range(size):
         b[i] = faces[i].source
         for j in range(size):
             F = faces[i].get_factor_form(faces[j])
             a[i][j] -= faces[i].reflect[color] * F
-
     x = np.linalg.solve(a, b)
-
     for i in range(len(x)):
         faces[i].ilumination[color] = x[i]
 
@@ -336,4 +333,18 @@ if __name__ == "__main__":
                 objects[obj]['colors'][j + 1] = gm
                 objects[obj]['colors'][j + 2] = bm
 
-    # Update the files
+
+
+    ## Update the files
+    for geometry in root.getElementsByTagName("geometry"):
+        id = ''
+        for arr in geometry.getElementsByTagName("float_array"):
+            id = arr.getAttribute("id")
+            splitted_id = id.split('-')
+            arr.firstChild.data = ' '.join([str(x) for x in objects[splitted_id[0]][splitted_id[2]]])
+        for arr in geometry.getElementsByTagName("p"):
+            splitted_id = id.split('-')
+            arr.firstChild.data = ' '.join([str(x) for x in objects[splitted_id[0]]['mapping']])
+
+    with open('solver.dae','w') as file:
+        file.write(root.toxml())
