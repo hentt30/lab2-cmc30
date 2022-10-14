@@ -81,6 +81,19 @@ class Face:
         return (a[0] - b[0],
                 a[1] - b[1],
                 a[2] - b[2])
+    def add(self, a, b):
+        return (a[0] + b[0],
+                a[1] + b[1],
+                a[2] + b[2])
+    
+    def multiply(self,a,b):
+        return(a[0] * b[0],a[1] * b[1],a[2] * b[2])
+    
+    def dot_product(self, a, b):
+        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+
+    def cross_product(self,a,b):
+        return ((a[1]*b[2] - a[2]*b[1]) , -(a[0]*b[2]-a[2]*b[0]) , (a[0]*b[1] - a[1]*b[0]))
 
     def tetrahedron_calc_volume(self,a, b, c, d):
         return (self.determinant_3x3((
@@ -89,6 +102,48 @@ class Face:
                                 self.subtract(c, d),
                                  )) / 6.0)
     
+    def intersect_segment_plane(self,p1,p2,plane_point,plane_normal, epsilon = 1e-6):
+        """
+        p1: first point of the segment
+        p2: other point of the segment
+        plane_point: onepoint of the plane
+        plane_normal: the norm of the plane       
+        """
+        vij = self.subtract(p1,p2)
+        dot_p_normal_vij = self.dot_product(vij,plane_normal)
+
+        if abs(dot_p_normal_vij) > epsilon:
+            w = self.sub(p1, plane_point)
+            fac = -self.dot_product(w,plane_normal, w) / dot_p_normal_vij
+            u = self.multiply(u, fac)
+            return self.add(p1, u)
+            
+        return None
+
+    
+    def same_side(self, p1,p2, a,b):
+        cp1 = self.cross_product(b-a, p1-a)
+        cp2 = self.cross_product(b-a, p2-a)
+        if self.dot_product(cp1, cp2) >= 0:
+            return True
+        else:
+            return False
+
+    def point_in_triangle(self, p, a,b,c)->bool:
+        if self.same_side(p,a, b,c) and self.same_side(p,b, a,c) and self.same_side(p,c, a,b):
+            return True
+        else: 
+            return False
+
+    def p1(self)->tuple():
+        return (self.x1,self.y1,self.z1)
+    
+    def p2(self)->tuple():
+        return (self.x2,self.y2,self.z2)
+
+    def p3(self)->tuple():
+        return (self.x3,self.y3,self.z3)
+
     def get_factor_form(self,face:Face)->float:
         """
         return the factor form used to solve the linear system   
@@ -105,8 +160,11 @@ class Face:
             v2 = self.tetrahedron_calc_volume((other_face.x1, other_face.y1,other_face.z1),(other_face.x2, other_face.y2,other_face.z2),(other_face.x3, other_face.y3,other_face.z3),face.centroid)
             if np.sign(v1) == np.sign(v2):
                 continue
-            
-
+            intersect = self.intersect_segment_plane(self.centroid,face.centroid,(other_face.x1,other_face.y1,other_face.z1),other_face.normal)
+            if intersect is not None:
+                result = self.point_in_triangle(intersect, other_face.p1(),other_face.p2(),other_face.p3())
+                if result:
+                    return 0
 
         ## Return the view factor
         Aj = face.area
