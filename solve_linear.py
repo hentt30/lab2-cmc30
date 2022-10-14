@@ -7,7 +7,7 @@ from xml.dom.minidom import parse, Node
 import numpy as np
 
 faces_vector = []
-colors = ['r', 'g', 'b']
+all_colors = ['r', 'g', 'b']
 
 
 class Face:
@@ -55,7 +55,7 @@ class Face:
 
         self.centroid = self.get_centroid()
         self.area = self.get_area()
-        self.norm = self.get_norm()
+        self.normal = self.get_normal()
 
     def get_centroid(self) -> tuple:
         """
@@ -83,6 +83,8 @@ class Face:
         a = (self.x2 - self.x1, self.y2 - self.y1, self.z2 - self.z1)
         b = (self.x3 - self.x1, self.y3 - self.y1, self.z3 - self.z1)
         module = self.get_area() * 2
+        if module == 0.0:
+            print(self.p1(), self.p2(), self.p3())
         norm = ((a[1] * b[2] - a[2] * b[1]) / module,
                 -(a[0] * b[2] - a[2] * b[0]) / module,
                 (a[0] * b[1] - a[1] * b[0]) / module)
@@ -111,8 +113,8 @@ class Face:
                 a[1] + b[1],
                 a[2] + b[2])
 
-    def multiply(self, a, b):
-        return (a[0] * b[0], a[1] * b[1], a[2] * b[2])
+    def multiply(self, k, b):
+        return (k * b[0], k * b[1], k * b[2])
 
     def dot_product(self, a, b):
         return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
@@ -138,16 +140,16 @@ class Face:
         dot_p_normal_vij = self.dot_product(vij, plane_normal)
 
         if abs(dot_p_normal_vij) > epsilon:
-            w = self.sub(p1, plane_point)
-            fac = -self.dot_product(w, plane_normal, w) / dot_p_normal_vij
-            u = self.multiply(u, fac)
+            w = self.subtract(p1, plane_point)
+            fac = -self.dot_product(w, plane_normal) / dot_p_normal_vij
+            u = self.multiply(fac, vij)
             return self.add(p1, u)
 
         return None
 
     def same_side(self, p1, p2, a, b):
-        cp1 = self.cross_product(b-a, p1-a)
-        cp2 = self.cross_product(b-a, p2-a)
+        cp1 = self.cross_product(self.subtract(b, a), self.subtract(p1, a))
+        cp2 = self.cross_product(self.subtract(b, a), self.subtract(p2, a))
         if self.dot_product(cp1, cp2) >= 0:
             return True
         else:
@@ -174,7 +176,7 @@ class Face:
         """
         vij = (self.centroid[0] - face.centroid[0], self.centroid[1] -
                face.centroid[1], self.centroid[2] - face.centroid[2])
-        if self.id == face.id or (180.0/math.pi) * self.angle_between(vij, face.norm) < 90:
+        if self.id == face.id or (180.0/math.pi) * self.angle_between(vij, face.normal) < 90:
             return 0
 
         # check if the triangles aren't blocked
@@ -199,7 +201,7 @@ class Face:
         Aj = face.area
         cos_theta_i = np.cos(self.angle_between(vij, self.centroid))
         cos_theta_j = np.cos(self.angle_between(vij, face.centroid))
-        r = np.norm(vij)
+        r = np.linalg.norm(vij)
 
         return (Aj * cos_theta_i * cos_theta_j) / (math.pi * (r ** 2) + Aj)
 
@@ -274,58 +276,62 @@ if __name__ == "__main__":
     print(objects['Cube'].keys())
 
     # Create the faces objects
-    for object in objects:
+    for id, object in objects.items():
         vertices = object['positions']
         colors = object['colors']
         indexes = object['mapping']
 
         object['faces'] = []
+        reverse[id] = {}
         i = 0
         while i < len(indexes):
-            j = indexes[i]
+            j = 3 * indexes[i]
             p1 = vertices[j], vertices[j + 1], vertices[j + 2]
-            j = indexes[i + 4]
-            p2 = vertices[j], vertices[j + 1], vertices[j + 2]
-            j = indexes[i + 8]
-            p3 = vertices[j], vertices[j + 1], vertices[j + 2]
+            k = 3 * indexes[i + 4]
+            p2 = vertices[k], vertices[k + 1], vertices[k + 2]
+            m = 3 * indexes[i + 8]
+            p3 = vertices[m], vertices[m + 1], vertices[m + 2]
 
-            k = indexes[i + 3]
-            c1 = colors[k], colors[k + 1], colors[k + 2]
-            k = indexes[i + 7]
-            c2 = colors[k], colors[k + 1], colors[k + 2]
-            k = indexes[i + 11]
-            c3 = colors[k], colors[k + 1], colors[k + 2]
+            j = 4 * indexes[i + 3]
+            c1 = colors[j], colors[j + 1], colors[j + 2], colors[j + 3]
+            k = 4 * indexes[i + 7]
+            c2 = colors[k], colors[k + 1], colors[k + 2], colors[k + 3]
+            m = 4 * indexes[i + 11]
+            c3 = colors[m], colors[m + 1], colors[m + 2], colors[m + 3]
 
             face = Face(p1, p2, p3, c1, c2, c3)
-            reverse[p1.__str__()] = (face, 1)
-            reverse[p2.__str__()] = (face, 2)
-            reverse[p3.__str__()] = (face, 3)
+            reverse[id][p1.__str__()] = (face, 1, i)
+            reverse[id][p2.__str__()] = (face, 2, i)
+            reverse[id][p3.__str__()] = (face, 3, i)
             object['faces'].append(face)
             faces_vector.append(face)
 
             i += 12
 
     # Solve the linear system (ax = b) for each color
-    threads = []
-    for c in colors:
-        t = Thread(target=set_final_iluminations, args=(faces_vector, c))
-        t.start()
-        threads.append(t)
-    for t in threads:
-        t.join()
+    # threads = []
+    for c in all_colors:
+        set_final_iluminations(faces_vector, c)
+        # t = Thread(target=set_final_iluminations, args=(faces_vector, c))
+        # t.start()
+        # threads.append(t)
+    # for t in threads:
+        # t.join()
 
     # Updates the vertices colors of the faces
-    for point, faces in reverse.items():
-        n = len(faces)
-        rm = gm = bm = 0
-        for face in faces:
-            rm += face[0]['r' + str(face[1])] / n
-            gm += face[0]['g' + str(face[1])] / n
-            bm += face[0]['b' + str(face[1])] / n
-        for face in faces:
-            face[0]['r' + str(face[1])] = rm
-            face[0]['g' + str(face[1])] = gm
-            face[0]['b' + str(face[1])] = bm
+    for obj in objects:
+        for point, faces in reverse[obj].items():
+            n = len(faces)
+            rm = gm = bm = 0
+            for face in faces:
+                rm += face[0]['r' + str(face[1])] / n
+                gm += face[0]['g' + str(face[1])] / n
+                bm += face[0]['b' + str(face[1])] / n
+            for face in faces:
+                j = indexes[face[2] + 3 + 4 * (face[1] - 1)]
+                objects[obj]['colors'][j] = rm
+                objects[obj]['colors'][j + 1] = gm
+                objects[obj]['colors'][j + 2] = bm
 
 
 
