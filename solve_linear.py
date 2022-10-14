@@ -37,19 +37,22 @@ class Face:
         self.a3 = c3[3]
 
         self.source = 0
-        pr = (self.r1 + self.r2 + self.r3)/3
-        pg = (self.g1 + self.g2 + self.g3)/3
-        pb = (self.b1 + self.b2 + self.b3)/3
+
+        pr = (self.r1 + self.r2 + self.r3) / 3
+        pg = (self.g1 + self.g2 + self.g3) / 3
+        pb = (self.b1 + self.b2 + self.b3) / 3
         self.reflect = {
             'r': pr,
             'g': pg,
             'b': pb,
         }
+
         self.ilumination = {
             'r': 0,
             'g': 0,
             'b': 0,
         }
+
         self.centroid = self.get_centroid()
         self.area = self.get_area()
         self.norm = self.get_norm()
@@ -58,7 +61,9 @@ class Face:
         """
         Return the centroid of the triangle
         """
-        return ((self.x1 + self.x2 + self.x3)/3, (self.y1 + self.y2 + self.y3)/3, (self.z1 + self.z2 + self.z3)/3)
+        return ((self.x1 + self.x2 + self.x3) / 3,
+                (self.y1 + self.y2 + self.y3) / 3,
+                (self.z1 + self.z2 + self.z3) / 3)
 
     def get_area(self) -> float:
         """
@@ -66,8 +71,9 @@ class Face:
         """
         a = (self.x2 - self.x1, self.y2 - self.y1, self.z2 - self.z1)
         b = (self.x3 - self.x1, self.y3 - self.y1, self.z3 - self.z1)
-        s = 0.5*math.sqrt((a[1]*b[2] - a[2]*b[1])**2 +
-                          (a[0]*b[2] - a[2]*b[0])**2 + (a[0]*b[1] - a[1]*b[0])**2)
+        s = 0.5 * math.sqrt((a[1] * b[2] - a[2] * b[1]) ** 2 +
+                            (a[0] * b[2] - a[2] * b[0]) ** 2 +
+                            (a[0] * b[1] - a[1] * b[0]) ** 2)
         return s
 
     def get_normal(self) -> tuple:
@@ -76,9 +82,10 @@ class Face:
         """
         a = (self.x2 - self.x1, self.y2 - self.y1, self.z2 - self.z1)
         b = (self.x3 - self.x1, self.y3 - self.y1, self.z3 - self.z1)
-        module = self.get_area()*2
-        norm = ((a[1]*b[2] - a[2]*b[1])/module, -(a[0]*b[2]-a[2]
-                * b[0])/module, (a[0]*b[1] - a[1]*b[0])/module)
+        module = self.get_area() * 2
+        norm = ((a[1] * b[2] - a[2] * b[1]) / module,
+                -(a[0] * b[2] - a[2] * b[0]) / module,
+                (a[0] * b[1] - a[1] * b[0]) / module)
         return norm
 
     def unit_vector(self, vector):
@@ -112,7 +119,7 @@ class Face:
         """
         vij = (self.centroid[0] - face.centroid[0], self.centroid[1] -
                face.centroid[1], self.centroid[2] - face.centroid[2])
-        if self.id == face.id or (180.0/math.pi)*self.angle_between(vij, face.norm) < 90:
+        if self.id == face.id or (180.0/math.pi) * self.angle_between(vij, face.norm) < 90:
             return 0
 
         # check if the triangles aren't blocked
@@ -125,8 +132,6 @@ class Face:
                 other_face.x2, other_face.y2, other_face.z2), (other_face.x3, other_face.y3, other_face.z3), face.centroid)
             if np.sign(v1) == np.sign(v2):
                 continue
-            
-
 
         # Return the view factor
         Aj = face.area
@@ -134,7 +139,7 @@ class Face:
         cos_theta_j = np.cos(self.angle_between(vij, face.centroid))
         r = np.norm(vij)
 
-        return (Aj*cos_theta_i*cos_theta_j)/(math.pi*(r**2) + Aj)
+        return (Aj * cos_theta_i * cos_theta_j) / (math.pi * (r ** 2) + Aj)
 
 
 def set_id_attribute(parent, attribute_name="id"):
@@ -170,6 +175,22 @@ if __name__ == "__main__":
     document = parse('exemplocena.dae')
     set_id_attribute(document)
     root = document.documentElement
+    # tree = ET.parse('exemplocena.dae')
+    # root = tree.getroot()
+    # elm = root.find('library_geometries')
+    # objects = {}
+    # for geometry in elm:
+    #     print(geometry.attrib)
+    #     objects[geometry.attrib['id']] = {}
+    #     elements = geometry[0].findall('source')
+    #     pos = list(filter(
+    #         lambda x: x.attrib['id'] == geometry.attrib['id'] + '-positions',
+    #         elements))[0]
+    #     print(pos.find('float_array').text)
+
+    #     triangles = geometry[0].find('triangles')
+    #     p = triangles.find('p')
+    #     indexes = list(map(int, p.text.split()))
 
     objects = {}
 
@@ -180,8 +201,6 @@ if __name__ == "__main__":
             objects[splitted_id[0]] = {}
         objects[splitted_id[0]][splitted_id[2]] = list(
             map(float, geometry.firstChild.data.split()))
-    
-    print(objects)
 
     # Create the faces objects
 
