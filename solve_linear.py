@@ -205,9 +205,22 @@ for geometry in root.getElementsByTagName("geometry"):
             objects[splitted_id[0]] = {}
         objects[splitted_id[0]]['mapping'] = list(map(int,arr.firstChild.data.split()))
     
-print(objects.keys())
+
 ## Create the faces objects
 
 ## Solve the linear system
 
+
 ## Update the files
+for geometry in root.getElementsByTagName("geometry"):
+    id = ''
+    for arr in geometry.getElementsByTagName("float_array"):
+        id = arr.getAttribute("id")
+        splitted_id = id.split('-')
+        arr.firstChild.data = ' '.join([str(x) for x in objects[splitted_id[0]][splitted_id[2]]])
+    for arr in geometry.getElementsByTagName("p"):
+        splitted_id = id.split('-')
+        arr.firstChild.data = ' '.join([str(x) for x in objects[splitted_id[0]]['mapping']])
+
+with open('solver.dae','w') as file:
+    file.write(root.toxml())
