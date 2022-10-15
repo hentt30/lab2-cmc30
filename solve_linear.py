@@ -221,8 +221,6 @@ if __name__ == "__main__":
             objects[splitted_id[0]]['mapping'] = list(
                 map(int, arr.firstChild.data.split()))
 
-    print(objects.keys())
-    print(objects['Cube'].keys())
 
     # Create the faces objects
     for id, object in objects.items():
@@ -247,7 +245,7 @@ if __name__ == "__main__":
             c2 = np.array([colors[k], colors[k + 1], colors[k + 2], colors[k + 3]])
             m = 4 * indexes[i + 11]
             c3 = np.array([colors[m], colors[m + 1], colors[m + 2], colors[m + 3]])
-            source = 1 if id == 'Cube' else 0
+            source = 1 if id == 'Cube_001' else 0
             face = Face(p1, p2, p3, c1, c2, c3)
             face.source = source
             if p1.__str__() not in reverse[id]:
@@ -259,6 +257,10 @@ if __name__ == "__main__":
             reverse[id][p1.__str__()].append((face, 1, i))
             reverse[id][p2.__str__()].append((face, 2, i))
             reverse[id][p3.__str__()].append((face, 3, i))
+            if(i == 2160):
+                print("")
+            if i > 4300:
+                print("")
             object['faces'].append(face)
             faces_vector.append(face)
             faces_p1=np.append(faces_p1,np.array([p1]),axis=0)
@@ -272,15 +274,16 @@ if __name__ == "__main__":
 
     # Updates the vertices colors of the faces
     for obj in objects:
+        nindexes = objects[obj]['mapping']
         for point, faces in reverse[obj].items():
             n = len(faces)
             rm = gm = bm = 0
             for face in faces:
-                rm += getattr(face[0],'r' + str(face[1])) / n
-                gm += getattr(face[0],'g' + str(face[1])) / n
-                bm += getattr(face[0],'b' + str(face[1])) / n
+                rm += getattr(face[0],'ilumination')['r'] / n
+                gm += getattr(face[0],'ilumination')['g'] / n
+                bm += getattr(face[0],'ilumination')['b'] / n
             for face in faces:
-                j = 4*indexes[face[2] + 3 + 4 * (face[1] - 1)]
+                j = 4*nindexes[face[2] + 3 + 4 * (face[1] - 1)]
                 objects[obj]['colors'][j] = rm
                 objects[obj]['colors'][j + 1] = gm
                 objects[obj]['colors'][j + 2] = bm
