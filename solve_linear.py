@@ -137,9 +137,8 @@ class Face:
         """
         if face.id in self.cache:
             return self.cache[face.id]
-        vij = (self.centroid[0] - face.centroid[0], self.centroid[1] -
-               face.centroid[1], self.centroid[2] - face.centroid[2])
-        if self.id == face.id or (180.0/math.pi) * self.angle_between(vij, face.normal) < 90:
+        vij = face.centroid - self.centroid
+        if self.id == face.id or( (180.0/math.pi) * self.angle_between(vij, face.normal) < 90 or (180.0/math.pi) * self.angle_between(vij, self.normal) > 90):
             return 0
 
         def intersect_line_triangle(q1,q2,p1,p2,p3):
@@ -164,10 +163,10 @@ class Face:
             return 0
         # Return the view factor
         Aj = face.area
-        cos_theta_i = np.cos(self.angle_between(vij, self.centroid))
-        cos_theta_j = np.cos(self.angle_between(vij, face.centroid))
+        cos_theta_i = max(np.cos(self.angle_between(vij, self.normal)),0)
+        cos_theta_j = max(-np.cos(self.angle_between(vij, face.normal)),0)
         r = np.linalg.norm(vij)
-        self.cache[face.id] = (Aj * cos_theta_i * cos_theta_j) / (math.pi * (r ** 2) + Aj)
+        self.cache[face.id] = (Aj * cos_theta_i * cos_theta_j) / (math.pi * (r ** 2))
         return self.cache[face.id]
 
 
@@ -193,7 +192,8 @@ def set_final_iluminations(faces: list[Face], color: str) -> np.ndarray:
             a[i][j] -= faces[i].reflect[color] * F
     x = np.linalg.solve(a, b)
     for i in range(len(x)):
-        faces[i].ilumination[color] = x[i]
+        faces[i].ilumination[color] = x[i] / (max(x)-min(x)) - min(x) / (max(x) - min(x))
+        #faces[i].ilumination[color] = min([x[i]-min(x), 1])
 
 
 if __name__ == "__main__":
