@@ -12,6 +12,10 @@ faces_p2 = np.empty((0,3), int)
 faces_p3 = np.empty((0,3), int)
 all_colors = ['r', 'g', 'b']
 
+matrices = {"Cube_002":np.array([[-1.567307 ,0 ,0, -0.01589326], [0 ,-1.567307, 0, 0.372328], [0, 0, -0.1410459, 0.651979] ,[0, 0, 0, 1]]),
+"Cube_001":np.array([[0.3195248, 0, 0, -0.4411952], [0, 0.3195248, 0, -2.296521], [0, 0, 0.3195248, 2.502618], [0, 0, 0, 1]]),
+"Cylinder":np.array([[1, 0, 0, 0.1575703], [0, 1, 0, 0.2751122], [0, 0, 1, -0.7786573], [0, 0, 0, 1]]),
+"Cube":np.array([[3 ,0 ,0 ,0] ,[0 ,3 ,0, -0.02454412] ,[0 ,0 ,3 ,1] ,[0 ,0 ,0 ,1]]),}
 
 class Face:
     
@@ -138,7 +142,9 @@ class Face:
         if face.id in self.cache:
             return self.cache[face.id]
         vij = face.centroid - self.centroid
-        if self.id == face.id or( (180.0/math.pi) * self.angle_between(vij, face.normal) < 90 or (180.0/math.pi) * self.angle_between(vij, self.normal) > 90):
+        if self.id == face.id:
+            return 0
+        if ( self.angle_between(vij, face.normal) <= np.pi/2 or self.angle_between(vij, self.normal) > np.pi/2):
             return 0
 
         def intersect_line_triangle(q1,q2,p1,p2,p3):
@@ -158,13 +164,13 @@ class Face:
         self_centroid = np.array([self.centroid]*len(faces_p1))
         face_centroid = np.array([face.centroid]*len(faces_p1))
         res = intersect_line_triangle(self_centroid,face_centroid,faces_p1,faces_p2,faces_p3)
-        
+
         if(np.sum(res) > 2):
             return 0
         # Return the view factor
         Aj = face.area
-        cos_theta_i = max(np.cos(self.angle_between(vij, self.normal)),0)
-        cos_theta_j = max(-np.cos(self.angle_between(vij, face.normal)),0)
+        cos_theta_i = np.cos(self.angle_between(vij, self.normal))
+        cos_theta_j = -np.cos(self.angle_between(vij, face.normal))
         r = np.linalg.norm(vij)
         self.cache[face.id] = (Aj * cos_theta_i * cos_theta_j) / (math.pi * (r ** 2))
         return self.cache[face.id]
@@ -190,10 +196,11 @@ def set_final_iluminations(faces: list[Face], color: str) -> np.ndarray:
         for j in range(size):
             F = faces[i].get_view_factor(faces[j])
             a[i][j] -= faces[i].reflect[color] * F
-    x = np.linalg.solve(a, b)
+    x = np.linalg.solve(a, b)/300
+    x = np.clip(x,0,1)
     for i in range(len(x)):
-        faces[i].ilumination[color] = x[i] / (max(x)-min(x)) - min(x) / (max(x) - min(x))
-        #faces[i].ilumination[color] = min([x[i]-min(x), 1])
+        #faces[i].ilumination[color] = x[i] #/ (max(x)-min(x)) - min(x) / (max(x) - min(x))
+        faces[i].ilumination[color] = x[i]
 
 
 if __name__ == "__main__":
@@ -233,11 +240,12 @@ if __name__ == "__main__":
         i = 0
         while i < len(indexes):
             j = 3 * indexes[i]
-            p1 = np.array([vertices[j], vertices[j + 1], vertices[j + 2]])
+            p1 = np.matmul(np.array([vertices[j], vertices[j + 1], vertices[j + 2],1]),matrices[id])[:3]
             k = 3 * indexes[i + 4]
-            p2 = np.array([vertices[k], vertices[k + 1], vertices[k + 2]])
+            p2 = np.matmul(np.array([vertices[k], vertices[k + 1], vertices[k + 2],1]),matrices[id])[:3]
             m = 3 * indexes[i + 8]
-            p3 = np.array([vertices[m], vertices[m + 1], vertices[m + 2]])
+            p3 = np.matmul(np.array([vertices[m], vertices[m + 1], vertices[m + 2],1]),matrices[id])[:3]
+
 
             j = 4 * indexes[i + 3]
             c1 = np.array([colors[j], colors[j + 1], colors[j + 2], colors[j + 3]])
@@ -245,7 +253,7 @@ if __name__ == "__main__":
             c2 = np.array([colors[k], colors[k + 1], colors[k + 2], colors[k + 3]])
             m = 4 * indexes[i + 11]
             c3 = np.array([colors[m], colors[m + 1], colors[m + 2], colors[m + 3]])
-            source = 1 if id == 'Cube_001' else 0
+            source = 200 if id == 'Cylinder' else 0
             face = Face(p1, p2, p3, c1, c2, c3)
             face.source = source
             if p1.__str__() not in reverse[id]:
