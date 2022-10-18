@@ -21,6 +21,7 @@ class Face:
     
     def __init__(self, p1: np.array, p2: np.array, p3: np.array, c1: np.array, c2: np.array, c3: np.array):
         self.id = uuid.uuid4()
+        self.object_id = ""
         self.p1 = p1
         self.p2 = p2
         self.p3 = p3
@@ -29,7 +30,11 @@ class Face:
         self.c2 = c2
         self.c3 = c3
 
-        self.source = 0
+        self.source = {
+            'r': 0,
+            'g': 0,
+            'b': 0,
+        }
 
         pr = (self.c1[0] + self.c2[0] + self.c3[0]) / 3.0
         pg = (self.c1[1] + self.c2[1] + self.c3[1]) / 3.0
@@ -82,59 +87,14 @@ class Face:
         v2_u = self.unit_vector(v2)
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
-    def determinant_3x3(self, m):
-        return np.linalg.det(m)
-
-    def subtract(self, a, b):
-        return a-b
-
-    def add(self, a, b):
-        return  a + b
-
-    def multiply(self, k, b):
-        return k*b
-
-    def dot_product(self, a, b):
-        return np.dot(a, b)
-
-    def cross_product(self, a, b):
-        return np.cross(a, b)
-
-    def tetrahedron_calc_volume(self, a, b, c, d):
-        return (self.determinant_3x3(np.array([
-            a-b,
-            b-c,
-            c-d,]
-        )) / 6.0)
-
-    def intersect_segment_plane(self, p1, p2, plane_point, plane_normal, epsilon=1e-6):
-        """
-        p1: first point of the segment
-        p2: other point of the segment
-        plane_point: onepoint of the plane
-        plane_normal: the norm of the plane
-        """
-        vij = self.subtract(p1, p2)
-        dot_p_normal_vij = self.dot_product(vij, plane_normal)
-
-        condition = ~(abs(dot_p_normal_vij) > epsilon)
-        w = self.subtract(p1, plane_point)
-        fac = -self.dot_product(w, plane_normal) / (dot_p_normal_vij + int(condition))
-        u = self.multiply(fac, vij)
-        res = self.add(p1, u)
-
-        return np.where(condition,None,res)
-
     def same_side(self, p1, p2, a, b):
-        cp1 = self.cross_product(self.subtract(b, a), self.subtract(p1, a))
-        cp2 = self.cross_product(self.subtract(b, a), self.subtract(p2, a))
-        return self.dot_product(cp1, cp2) >= 0
+        cp1 = np.cross(b-a, p1-a)
+        cp2 = np.cross(b-a, p2-a)
+        return np.sum(cp1*cp2, axis=1) >= 0
 
     def point_in_triangle(self, p, a, b, c) -> bool:
-        return self.same_side(p, a, b, c) and self.same_side(p, b, a, c) and self.same_side(p, c, a, b)
+        return self.same_side(p, a, b, c) & self.same_side(p, b, a, c) & self.same_side(p, c, a, b)
     
-    
-
     def get_view_factor(self, face: Face) -> float:
         """
         return the factor form used to solve the linear system
@@ -146,7 +106,6 @@ class Face:
             return 0
         if ( self.angle_between(vij, face.normal) <= np.pi/2 or self.angle_between(vij, self.normal) > np.pi/2):
             return 0
-
         def intersect_line_triangle(q1,q2,p1,p2,p3):
             def signed_tetra_volume(a,b,c,d):
                 return np.sign(np.sum(np.cross(b-a,c-a)*(d-a),axis=1)/6.0)
@@ -159,7 +118,11 @@ class Face:
             x = (s1!=s2)
             y = (s3==s4)
             z = (s4==s5)
-            return x&y&z
+            normal = np.cross(p2-p1, p3-p1)
+            t = -np.sum((q1-p1)*normal, axis=1)/(np.sum((q2-q1)*normal, axis=1)+1e-4)
+            #t = np.transpose(np.array([t]*3))
+            #point = q1 + t*(q2-q1)
+            return x&y&z&(t>0)&(t<1)
 
         self_centroid = np.array([self.centroid]*len(faces_p1))
         face_centroid = np.array([face.centroid]*len(faces_p1))
@@ -192,16 +155,14 @@ def set_final_iluminations(faces: list[Face], color: str) -> np.ndarray:
     a = np.identity(size)
     b = np.zeros(size)
     for i in range(size):
-        b[i] = faces[i].source
+        b[i] = faces[i].source[color]
         for j in range(size):
             F = faces[i].get_view_factor(faces[j])
-            if F < 0:
-                print("")
             a[i][j] -= faces[i].reflect[color] * F
-    x = np.linalg.solve(a, b)/300
-    x = np.clip(x,0,1)
+    x = np.linalg.solve(a, b)
+    #x = np.clip(x,0,1)
+    x = x / (max(x)-min(x)) - min(x) / (max(x) - min(x))
     for i in range(len(x)):
-        #faces[i].ilumination[color] = x[i] #/ (max(x)-min(x)) - min(x) / (max(x) - min(x))
         faces[i].ilumination[color] = x[i]
 
 
@@ -255,9 +216,10 @@ if __name__ == "__main__":
             c2 = np.array([colors[k], colors[k + 1], colors[k + 2], colors[k + 3]])
             m = 4 * indexes[i + 11]
             c3 = np.array([colors[m], colors[m + 1], colors[m + 2], colors[m + 3]])
-            source = 200 if id == 'Cylinder' else 0
+            source = {'r': 1, 'g': 1, 'b': 1} if id == 'Cube_001' else {'r': 0, 'g': 0, 'b': 0}
             face = Face(p1, p2, p3, c1, c2, c3)
             face.source = source
+            face.object_id = id
             if p1.__str__() not in reverse[id]:
                 reverse[id][p1.__str__()] = []
             if p2.__str__() not in reverse[id]:
