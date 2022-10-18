@@ -12,10 +12,7 @@ faces_p2 = np.empty((0,3), int)
 faces_p3 = np.empty((0,3), int)
 all_colors = ['r', 'g', 'b']
 
-matrices = {"Cube_002":np.array([[-1.567307 ,0 ,0, -0.01589326], [0 ,-1.567307, 0, 0.372328], [0, 0, -0.1410459, 0.651979] ,[0, 0, 0, 1]]),
-"Cube_001":np.array([[0.3195248, 0, 0, -0.4411952], [0, 0.3195248, 0, -2.296521], [0, 0, 0.3195248, 2.502618], [0, 0, 0, 1]]),
-"Cylinder":np.array([[1, 0, 0, 0.1575703], [0, 1, 0, 0.2751122], [0, 0, 1, -0.7786573], [0, 0, 0, 1]]),
-"Cube":np.array([[3 ,0 ,0 ,0] ,[0 ,3 ,0, -0.02454412] ,[0 ,0 ,3 ,1] ,[0 ,0 ,0 ,1]]),}
+matrices = {}
 
 class Face:
     
@@ -142,30 +139,32 @@ class Face:
         if face.id in self.cache:
             return self.cache[face.id]
         vij = face.centroid - self.centroid
+        vji = self.centroid - face.centroid
         if self.id == face.id:
             return 0
-        if ( self.angle_between(vij, face.normal) <= np.pi/2 or self.angle_between(vij, self.normal) > np.pi/2):
+        if ( self.angle_between(vij, face.normal) <= np.pi/2 or self.angle_between(vji, self.normal) <= np.pi/2):
             return 0
 
         def intersect_line_triangle(q1,q2,p1,p2,p3):
             def signed_tetra_volume(a,b,c,d):
-                return np.sign(np.sum(np.cross(b-a,c-a)*(d-a),axis=1)/6.0)
+                return np.sum(np.cross(b-a,c-a)*(d-a),axis=1)/6.0
 
             s1 = signed_tetra_volume(q1,p1,p2,p3)
             s2 = signed_tetra_volume(q2,p1,p2,p3)
             s3 = signed_tetra_volume(q1,q2,p1,p2)
             s4 = signed_tetra_volume(q1,q2,p2,p3)
             s5 = signed_tetra_volume(q1,q2,p3,p1)
-            x = (s1!=s2)
-            y = (s3==s4)
-            z = (s4==s5)
-            return x&y&z
+            x = (np.sign(s1)!=np.sign(s2))
+            y = (np.sign(s3)==np.sign(s4))
+            z = (np.sign(s4)==np.sign(s5))
+            w = ((np.abs(s1) > 1e-9) & (np.abs(s2) > 1e-9) )
+            return x&y&z&w
 
         self_centroid = np.array([self.centroid]*len(faces_p1))
         face_centroid = np.array([face.centroid]*len(faces_p1))
         res = intersect_line_triangle(self_centroid,face_centroid,faces_p1,faces_p2,faces_p3)
-
-        if(np.sum(res) > 2):
+        
+        if(np.sum(res) > 0):
             return 0
         # Return the view factor
         Aj = face.area
@@ -196,7 +195,7 @@ def set_final_iluminations(faces: list[Face], color: str) -> np.ndarray:
         for j in range(size):
             F = faces[i].get_view_factor(faces[j])
             a[i][j] -= faces[i].reflect[color] * F
-    x = np.linalg.solve(a, b)/300
+    x = np.linalg.solve(a, b)
     x = np.clip(x,0,1)
     for i in range(len(x)):
         #faces[i].ilumination[color] = x[i] #/ (max(x)-min(x)) - min(x) / (max(x) - min(x))
@@ -227,6 +226,10 @@ if __name__ == "__main__":
                 objects[splitted_id[0]] = {}
             objects[splitted_id[0]]['mapping'] = list(
                 map(int, arr.firstChild.data.split()))
+    for node in root.getElementsByTagName("node"):
+        id = node.getAttribute("id")
+        for arr in node.getElementsByTagName("matrix"):
+            matrices[id] = np.array(list(map(float, arr.firstChild.data.split()))).reshape((4,4))
 
 
     # Create the faces objects
@@ -240,42 +243,65 @@ if __name__ == "__main__":
         i = 0
         while i < len(indexes):
             j = 3 * indexes[i]
-            p1 = np.matmul(np.array([vertices[j], vertices[j + 1], vertices[j + 2],1]),matrices[id])[:3]
+            p1 = np.matmul(matrices[id],np.array([vertices[j], vertices[j + 1], vertices[j + 2],1]))[:3]
             k = 3 * indexes[i + 4]
-            p2 = np.matmul(np.array([vertices[k], vertices[k + 1], vertices[k + 2],1]),matrices[id])[:3]
+            p2 = np.matmul(matrices[id],np.array([vertices[k], vertices[k + 1], vertices[k + 2],1]))[:3]
             m = 3 * indexes[i + 8]
-            p3 = np.matmul(np.array([vertices[m], vertices[m + 1], vertices[m + 2],1]),matrices[id])[:3]
+            p3 = np.matmul(matrices[id],np.array([vertices[m], vertices[m + 1], vertices[m + 2],1]))[:3]
+          
 
-
-            j = 4 * indexes[i + 3]
-            c1 = np.array([colors[j], colors[j + 1], colors[j + 2], colors[j + 3]])
-            k = 4 * indexes[i + 7]
-            c2 = np.array([colors[k], colors[k + 1], colors[k + 2], colors[k + 3]])
-            m = 4 * indexes[i + 11]
-            c3 = np.array([colors[m], colors[m + 1], colors[m + 2], colors[m + 3]])
-            source = 200 if id == 'Cylinder' else 0
+            a = 4 * indexes[i + 3]
+            c1 = np.array([colors[a], colors[a + 1], colors[a + 2], colors[a + 3]])
+            b = 4 * indexes[i + 7]
+            c2 = np.array([colors[b], colors[b + 1], colors[b + 2], colors[b + 3]])
+            c = 4 * indexes[i + 11]
+            c3 = np.array([colors[c], colors[c + 1], colors[c + 2], colors[c + 3]])
+            source = 1 if id == 'Cube_001' else 0
             face = Face(p1, p2, p3, c1, c2, c3)
             face.source = source
-            if p1.__str__() not in reverse[id]:
-                reverse[id][p1.__str__()] = []
-            if p2.__str__() not in reverse[id]:
-                reverse[id][p2.__str__()] = []
-            if p3.__str__() not in reverse[id]:
-                reverse[id][p3.__str__()] = []
-            reverse[id][p1.__str__()].append((face, 1, i))
-            reverse[id][p2.__str__()].append((face, 2, i))
-            reverse[id][p3.__str__()].append((face, 3, i))
-            if(i == 2160):
-                print("")
-            if i > 4300:
-                print("")
+            if j not in reverse[id]:
+                reverse[id][j] = []
+            if k not in reverse[id]:
+                reverse[id][k] = []
+            if m not in reverse[id]:
+                reverse[id][m] = []
+            reverse[id][j].append((face, 1, i))
+            reverse[id][k].append((face, 2, i))
+            reverse[id][m].append((face, 3, i))
+
             object['faces'].append(face)
             faces_vector.append(face)
-            faces_p1=np.append(faces_p1,np.array([p1]),axis=0)
-            faces_p2=np.append(faces_p2,np.array([p2]),axis=0)
-            faces_p3=np.append(faces_p3,np.array([p3]),axis=0)
+            faces_p1=np.append(faces_p1,np.array([p1.copy()]),axis=0)
+            faces_p2=np.append(faces_p2,np.array([p2.copy()]),axis=0)
+            faces_p3=np.append(faces_p3,np.array([p3.copy()]),axis=0)
 
             i += 12
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    debug = False
+    if debug:
+        triangles =  [(face.p1,face.p2,face.p3) for face in faces_vector]
+        f = 1
+        u = [face.normal[0]/f + face.centroid[0] for face in faces_vector]
+        v = [face.normal[1]/f + face.centroid[1] for face in faces_vector]
+        w = [face.normal[2]/f + face.centroid[2] for face in faces_vector]
+        x = [face.centroid[0] for face in faces_vector]
+        y = [face.centroid[1] for face in faces_vector]
+        z = [face.centroid[2] for face in faces_vector]
+
+        ax = plt.gca(projection="3d")
+
+        #ax.add_collection(Poly3DCollection(triangles))
+        for i in range(len(x)):
+            ax.plot([x[i],u[i]],[y[i],v[i]],[z[i],w[i]])
+        #ax.quiver(x,y,z,u,v,w)
+        ax.scatter(x, y, z, marker='o',color='r')
+        ax.set_xlim([-5,5])
+        ax.set_ylim([-5,5])
+        ax.set_zlim([-5,5])
+
+        plt.show()
 
     for c in all_colors:
         set_final_iluminations(faces_vector, c)
