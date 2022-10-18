@@ -13,12 +13,13 @@ faces_p3 = np.empty((0,3), int)
 all_colors = ['r', 'g', 'b']
 
 matrices = {}
+debugint = []
 
 class Face:
     
-    def __init__(self, p1: np.array, p2: np.array, p3: np.array, c1: np.array, c2: np.array, c3: np.array):
+    def __init__(self, object_id, p1: np.array, p2: np.array, p3: np.array, c1: np.array, c2: np.array, c3: np.array):
         self.id = uuid.uuid4()
-        self.object_id = ""
+        self.object_id = object_id
         self.p1 = p1
         self.p2 = p2
         self.p3 = p3
@@ -36,6 +37,7 @@ class Face:
         pr = (self.c1[0] + self.c2[0] + self.c3[0]) / 3.0
         pg = (self.c1[1] + self.c2[1] + self.c3[1]) / 3.0
         pb = (self.c1[2] + self.c2[2] + self.c3[2]) / 3.0
+
         self.reflect = {
             'r': pr,
             'g': pg,
@@ -51,6 +53,8 @@ class Face:
         self.centroid = self.get_centroid()
         self.area = self.get_area()
         self.normal = self.get_normal()
+        if self.object_id == "Cube_002":
+            self.normal *= -1
         self.cache = {}
 
     def get_centroid(self) -> tuple:
@@ -116,14 +120,20 @@ class Face:
             x = (np.sign(s1)!=np.sign(s2))
             y = (np.sign(s3)==np.sign(s4))
             z = (np.sign(s4)==np.sign(s5))
-            w = ((np.abs(s1) > 1e-9) & (np.abs(s2) > 1e-9) )
+            w = ((np.abs(s1) > 1e-9) & (np.abs(s2) > 1e-9) & (np.abs(s3) > 1e-9) & (np.abs(s4) > 1e-9) & (np.abs(s5) > 1e-9))
             return x&y&z&w
 
         self_centroid = np.array([self.centroid]*len(faces_p1))
         face_centroid = np.array([face.centroid]*len(faces_p1))
         res = intersect_line_triangle(self_centroid,face_centroid,faces_p1,faces_p2,faces_p3)
-        
         if(np.sum(res) > 0):
+            if np.sum(res) not in debugint:
+                debugint.append(np.sum(res))
+                print(np.sum(res), self.object_id, face.object_id, self.normal, face.normal, self.centroid, face.centroid)
+                v = np.array(faces_vector)[res]
+                for f in v:
+                    print(f.object_id, f.normal, end = ' ')
+                print("")
             return 0
         # Return the view factor
         Aj = face.area
@@ -155,7 +165,7 @@ def set_final_iluminations(faces: list[Face], color: str) -> np.ndarray:
             F = faces[i].get_view_factor(faces[j])
             a[i][j] -= faces[i].reflect[color] * F
     x = np.linalg.solve(a, b)
-    x = np.clip(x,0,1)
+    x = np.clip(8*x,0,1)
     for i in range(len(x)):
         faces[i].ilumination[color] = x[i]
 
@@ -214,8 +224,8 @@ if __name__ == "__main__":
             c2 = np.array([colors[b], colors[b + 1], colors[b + 2], colors[b + 3]])
             c = 4 * indexes[i + 11]
             c3 = np.array([colors[c], colors[c + 1], colors[c + 2], colors[c + 3]])
-            source = 1 if id == 'Cube_001' else 0
-            face = Face(p1, p2, p3, c1, c2, c3)
+            source = {'r': 1, 'g': 1, 'b': 1} if id == 'Cube_001' else {'r': 0, 'g': 0, 'b': 0}
+            face = Face(id, p1, p2, p3, c1, c2, c3)
             face.source = source
             if j not in reverse[id]:
                 reverse[id][j] = []
